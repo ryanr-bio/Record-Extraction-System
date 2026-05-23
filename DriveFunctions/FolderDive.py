@@ -17,7 +17,7 @@ def get_id(get:object, params:str, identifier:str):
         response = (service.files()
                     .list( q= query,
                            orderBy= 'name_natural',
-                           nextPageToken= nextPageToken )
+                           pageToken= nextPageToken )
                     .execute())
         files.extend(response.get('files'))
         nextPageToken = response.get('nextPageToken')
