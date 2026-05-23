@@ -16,7 +16,10 @@ def create_json_template(column_names):
 def llm_response(llm, clean_records, prompt, system_content, column_names, primary_icd): # removed json_template for test
     if clean_records:
         schema = create_json_template(column_names)
-        for ocr_result, icd in zip(clean_records, primary_icd):
+        icd_list = list(primary_icd)
+        if len(icd_list) < len(clean_records):
+            icd_list += [None] * (len(clean_records) - len(icd_list))
+        for ocr_result, icd in zip(clean_records, icd_list):
             icd_instruction = f"\n### PRIMARY ICD (already extracted, do not change):\nThe primary_icd field must be set to: '{icd} - [find the matching description from the Provisional Diagnosis table]'" if icd else ""
             response = llm.create_chat_completion(
                 messages=[
