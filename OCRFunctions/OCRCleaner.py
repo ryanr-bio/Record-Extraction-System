@@ -7,9 +7,9 @@ def clean_ocr(records_dict):
                     r"file[\W|\s]no[\W] \d{2}[\W]\d{2}[\W]\d{2}", 
                     r"appt[\W]\s?time:", r"department[\W] accident and emergency", 
                     r"ND EMERGENCY", r"Fall Risk Assesment", 
-                    r"Nurse\W?s\s?Note[\W]", r"Vital Reasses?s?ment", 
+                    r"Vital Reasses?s?ment", 
                     r"Fall Risk Reasses?s?ment", r"Nurse\W?s Note Reassessment", 
-                    r"SI.No\s?Nurses Note", r"NCY\(\d*\)?", r"EPORTS"
+                    r"NCY\(\d*\)?", r"EPORTS"
                     r"\S*[\W]thumbay[\W]int\S*", r"PVR\s?ID[\W] \d{6}", 
                     r"I?DENT AND EMERGE", r"\S*\(\d*-(\s?\d*\)?)", 
                     r"Thumbay University", r"EMERGEN",
@@ -31,9 +31,10 @@ def clean_ocr(records_dict):
 
 def master_clean_ocr(records_dict):
     removals = [
-        (r"Fall\s*Risk\s*(?:Re)?as+es+ment", "Chief Complaint"), 
-        (r"Nurse'?s?\s*Note(?:\s*Reassessment)?", "Past Medical History"),
-        (r"Medication\s*Order", "Disposition")
+    (r"Fall\s*Risk\s*(?:Re)?as+es+ment", "Chief Complaint"),
+    (r"Nurs\w*\s+Not\w+", "Travel History"),
+    (r"Problems[\s\n]+(?:SI\.?\s*No|Life Cycle)", "Care Plan"),
+    (r"Medication\s*Order", "Disposition")
     ]
     cleaned_records = {}
     for key, value in records_dict.items():
@@ -59,11 +60,18 @@ def remove_sidebar_noise(records):
         "HEMODIALYSIS - NUTRITION", "ASSESSMENT/RE-ASSESSMENT", 
         "VisitRecord", "Departmet", "isil Type", "isit Type",
         "©All OP IP", "©AlI OP IP", ":AL OP OIP", "All OP IP",
+        "74U10", "74010", "7AU10", "34U1C", "D4U10", "G002", "L002", 
+        "L602", "2072", "2032", "2202", "4032", "C73", "Z022", "OIV12", 
+        "GI010", "C033", "URULOO", "UAULUO", "UAVLVUT", "JURULVO",
     ]
     
     cleaned_records = []
     for record in records:
         lines = record.split('\n')
-        cleaned = [line for line in lines if not any(noise in line.strip() for noise in SIDEBAR_NOISE)]
+        cleaned = [
+            line for line in lines
+            if not any(noise in line.strip() for noise in SIDEBAR_NOISE)
+            and not re.match(r'^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-\d{4}\)?$', line.strip())
+        ]
         cleaned_records.append('\n'.join(cleaned))
     return cleaned_records
