@@ -17,12 +17,3 @@ def get_column_names(df):
     df = df.drop(columns= ['s.no', 'Comp ID', 'Gender', 'Age'])
     columns = df.columns.str.strip().str.lower().to_list()
     return columns
-
-def add_data_to_excel(data, ws, starting_column, row_num, initial_data=None):
-    for i, value in enumerate(data):
-        for j, initial_value in enumerate(initial_data, start= 1):
-            ws.cell(row=int(row_num) + 2, column= j, value=initial_value)
-        ws.cell(row=int(row_num) + 2, column=starting_column + i, value=value)
-
-    print(f"Added data to row {row_num + 2}")
-    return True

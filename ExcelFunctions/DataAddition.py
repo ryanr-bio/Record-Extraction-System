@@ -22,7 +22,7 @@ def check_row_data(rows):
     indices = []
     for i in rows.index:
         row = rows.loc[i]
-        if any(str(row.get(key=col)) == 'nan' for col in columns):
+        if any(str(row.get(col)) == 'nan' for col in columns):
             indices.append(int(i))
     return indices
     
@@ -34,17 +34,34 @@ def data_per_row(df, records, comp_id):
     data = dict()
     errors = []
     for key,value in records.items():
-        proper_key = pd.to_datetime(key, 
-                                    errors='coerce', 
-                                    dayfirst= True).strftime("%d-%m-%Y")
-        if not proper_key in proper_dates:
+        if key == 'Unknown':
             data[key] = value
-        elif pd.isna(proper_key):
-            errors.append((f"Comp ID: {comp_id} | Date key: {key}\n"))
+            continue
+        parsed_key = pd.to_datetime(key, errors='coerce', dayfirst=True)
+        if pd.isna(parsed_key):
+            errors.append(f"Comp ID: {comp_id} | Date key: {key}\n")
+            continue
+        proper_key = parsed_key.strftime("%d-%m-%Y")
+        if not proper_key in proper_dates:
             data[key] = value
     if errors:
         print(f'''Errors found for Comp ID {comp_id}. 
               Check data_errors.txt for details.''')
         with open("data_errors.txt", "a") as f:
             f.writelines(errors)
+    data = dict(sorted(
+        data.items(),
+        key=lambda item: pd.to_datetime(item[0], errors='coerce', dayfirst=True)
+        if item[0] != 'Unknown' else pd.Timestamp.max
+    ))
     return data
+
+def add_data_to_excel(data, ws, starting_column, row_num, initial_data=None):
+    for i, value in enumerate(data):
+        if initial_data:
+            for j, initial_value in enumerate(initial_data, start= 1):
+                ws.cell(row=int(row_num) + 2, column= j, value=initial_value)
+        ws.cell(row=int(row_num) + 2, column=starting_column + i, value=value)
+
+    print(f"Added data to row {row_num + 2}")
+    return True
