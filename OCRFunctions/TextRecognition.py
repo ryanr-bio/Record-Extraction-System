@@ -1,7 +1,6 @@
 import io
 import re
 import cv2 as cv
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 import numpy as np
 
 def new_edit_image(img_bytes):
@@ -24,9 +23,10 @@ def Text_from_images(ocr, readable_list):
         yield string
 
 def Record_Grouping_with_Dates(texts):
-    record_groups = dict()
+    record_groups = {"Unknown": []}
     current_key = "Unknown"
-    query = r"Visit Date[\W|\w]\s?(\d{2})[\W|\w]\s?(\d{2})[\W|\w]\s?(\d{4})"
+    query = r"Visit\s*Date\W{0,3}(\d{2})\W{0,3}(\d{2})\W{0,3}(\d{4})"
+
     for records in texts:
         search = re.search(query, records, re.IGNORECASE)
         if search:
