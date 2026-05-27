@@ -4,16 +4,23 @@ import cv2 as cv
 import numpy as np
 
 def new_edit_image(img_bytes):
-    if img_bytes:
+    if not img_bytes:
+        return None
+    try:
         image_bytes = io.BytesIO(img_bytes)
         nparr = np.frombuffer(image_bytes.read(), np.uint8)
         img = cv.imdecode(nparr, cv.IMREAD_COLOR)
+        if img is None:
+            print(f"Could not decode image, skipping")
+            return None
         sharp_kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
-
         resized_img = cv.resize(img, (1920, 1080))
         resized_img = cv.GaussianBlur(resized_img, (7, 7), 0)
         resized_img = cv.filter2D(resized_img, -1, sharp_kernel)
         return resized_img
+    except Exception as e:
+        print(f"Image processing failed: {e}")
+        return None
 
 def Text_from_images(ocr, readable_list):
     results = ocr.predict_iter(readable_list)

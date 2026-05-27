@@ -31,7 +31,8 @@ def clean_ocr(records_dict):
 
 def master_clean_ocr(records_dict):
     removals = [
-    (r"Fall\s*Risk\s*(?:Re)?as+es+ment", "Chief Complaint"),
+    (r"Fall\s*Risk\s*(?:Re)?as+es+ment", "Chief Complaint"), 
+    (r"Menstrual\s*History", r"Past History"),
     (r"Nurs\w*\s+Not\w+", "Travel History"),
     (r"Problems[\s\n]+(?:SI\.?\s*No|Life Cycle)", "Care Plan"),
     (r"Medication\s*Order", "Disposition")
