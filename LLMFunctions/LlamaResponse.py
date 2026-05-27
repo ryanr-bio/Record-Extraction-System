@@ -13,10 +13,10 @@ def create_json_template(column_names):
         "required": list(template.keys())
     }
 
-def llm_response(llm, clean_records, prompt, system_content, column_names, primary_icd): # removed json_template for test
+def llm_response(llm, clean_records, prompt, system_content, column_names, primary_icd):
     if clean_records:
         schema = create_json_template(column_names)
-        icd_list = list(primary_icd)
+        icd_list = primary_icd
         if len(icd_list) < len(clean_records):
             icd_list += [None] * (len(clean_records) - len(icd_list))
         for ocr_result, icd in zip(clean_records, icd_list):
@@ -33,6 +33,7 @@ def llm_response(llm, clean_records, prompt, system_content, column_names, prima
                         ### OUTPUT: 
                         Return ONLY raw JSON. No explanation, no markdown, no 
                         preamble.
+                        Do not write markdown block quotes (such as ```json). Do not truncate.
                         OCR Text:
                         {ocr_result}'''
                     }
@@ -41,7 +42,7 @@ def llm_response(llm, clean_records, prompt, system_content, column_names, prima
                     "type": "json_object",
                     "schema": schema
                 },
-                temperature= 0.7
+                temperature= 0.2
             )
             output = response["choices"][0]["message"]["content"]
             yield output
