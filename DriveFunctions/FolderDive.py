@@ -1,14 +1,15 @@
 # from Google import Create_Service
 import pandas as pd
 
-def get_id(get:object, params:str, identifier:str):
+def get_id(get:object, params:str, identifier:str, include_names:bool=False):
     service = get
     param = params
     folder_identifier = identifier
     query = f"{param} = '{folder_identifier}' and trashed = false"
 
     response = (service.files()
-                .list(q= query, orderBy = 'name_natural')
+                .list(q= query, orderBy = 'name_natural', 
+                      fields = 'nextPageToken, files(id, name)')
                 .execute())
     files = response.get('files')
     nextPageToken = response.get('nextPageToken')
@@ -16,7 +17,8 @@ def get_id(get:object, params:str, identifier:str):
     while nextPageToken:
         response = (service.files()
                     .list( q= query,
-                           orderBy= 'name_natural',
+                           orderBy= 'name_natural', 
+                           fields = 'nextPageToken, files(id, name)',
                            pageToken= nextPageToken )
                     .execute())
         files.extend(response.get('files'))
@@ -24,10 +26,10 @@ def get_id(get:object, params:str, identifier:str):
 
     if files != []:
         df = pd.DataFrame(files)
-        list_files = df['id'].to_list()
-        return list_files
-    else:
-        return
+        if include_names:
+            return dict(zip(df['id'], df['name']))
+        return df['id'].to_list()
+    return {} if include_names else None
 
 def get_ParentFolderId(body: object, text:str):
     service = body
@@ -43,10 +45,13 @@ def get_ParentFolderId(body: object, text:str):
 def Search_Folder(body:object, parent_id:str):
     service = body
     folder_id = parent_id
-    query_type = 'parents' # runs query parameter for parents using folder id
+    query_type = 'parents'
 
     request = get_id(get= service, params= query_type, identifier= folder_id)
     return request
+
+def Search_Folder_with_names(body:object, parent_id:str):
+    return get_id(get=body, params='parents', identifier=parent_id, include_names=True)
 
 def get_folder_name(body, folder_id):
     request = body.files().get(fileId= folder_id, fields='name').execute()
