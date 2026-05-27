@@ -1,19 +1,19 @@
 import time
 start_time = time.perf_counter()
-import os
+import os, tempfile
 from openpyxl import load_workbook
 from llama_cpp import Llama
 from concurrent.futures import ThreadPoolExecutor
 from LLMFunctions.LlamaResponse import llm_response
 from DriveFunctions.Google import Create_Service
-from DriveFunctions.FolderDive import get_ParentFolderId, Search_Folder, get_folder_name
+from DriveFunctions.FolderDive import get_ParentFolderId, Search_Folder, Search_Folder_with_names
 from DriveFunctions.GetImages import get_image_bytes
 from OCRFunctions.TextRecognition import Text_from_images, Record_Grouping_with_Dates, new_edit_image
 from OCRFunctions.OCRCleaner import master_clean_ocr, remove_sidebar_noise
 from OCRFunctions.ICDManual import find_primary_icd
 from ExcelFunctions.OpenExcel import load_in_file, get_column_names
 from ExcelFunctions.DataAddition import specific_id_row, row_num_checker, check_row_data, data_per_row, add_data_to_excel
-from JSONExtract.JSONtoPy import extract_json, age_checker, extract_last_datetime
+from JSONExtract.JSONtoPy import extract_json, age_checker, extract_last_datetime, pick_later_time
 from JSONExtract.CheckPointSystem import check_progress, save_progress
 os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
 from paddleocr import PaddleOCR
@@ -79,7 +79,7 @@ timestamp from the Nursing Assessment or Observation Notes sections.
 the text directly after it, stopping at the next labeled field (any text ending in ":"). 
 If the value is empty, a date, month-year, or any non-place text, return null. If 
 "Travel History:" is immediately followed by another label, return null.
-20. **current_medication:** Find the FIRST occurrence of "Current Medication". Extract only text directly after it. Stop at "Medical Prescription" or "Medication Order".
+20. **current_medication:** Find the FIRST occurrence of "Current Medication". Extract only text directly after it. Stop at "Medical Prescription" or "Medication Order". If the section contains "No Important History" or is empty, return null. Do NOT extract medications from any other section such as Medication Order, Medical Prescription, Injection Administration Log, or Care Plan.
 21. **psychosocial:** Find the FIRST occurrence of "Psychosocial:" and extract only the text after it. Do not include occupation.
 22. **disease_grouping:** Unless specified, leave as null.
 '''
@@ -98,7 +98,7 @@ ocr_engine = PaddleOCR(
     text_det_limit_type= 'max',
     text_det_box_thresh= 0.5,
     text_det_thresh= 0.5,
-    text_det_unclip_ratio=1.6, #Best results with 1.6
+    text_det_unclip_ratio=1.4, #Best results with 1.6
     lang='en',
     device= 'cpu',
     enable_mkldnn=True,
@@ -120,10 +120,11 @@ service = Create_Service(CLIENT_FILE, API_NAME, API_VER, SCOPES)
 parent_folder_id = get_ParentFolderId(body= service, 
                                       text= 'Elderly ER Data Pics')
 
-subfolder_ids = Search_Folder(body= service, parent_id= parent_folder_id)
+subfolder_map = Search_Folder_with_names(body=service, parent_id=parent_folder_id)
+subfolder_ids = sorted(subfolder_map.keys(), key=lambda fid: int(subfolder_map[fid].strip()))
 
 for folder in subfolder_ids:
-    comp_id = get_folder_name(body= service, folder_id= folder)
+    comp_id = subfolder_map[folder].strip()
     print(comp_id)
     checkpoint = check_progress(checkpointfile)
 
@@ -132,19 +133,35 @@ for folder in subfolder_ids:
         continue
 
     rows= specific_id_row(dataframe= file, specific_id= comp_id)
-
     image_ids = Search_Folder(body= service, parent_id= folder)
+    image_bytes, pdf_bytes = get_image_bytes(image_file_ids= image_ids, service= service)
 
-    image_bytes = get_image_bytes(image_file_ids= image_ids, service= service)
-
+    texts = []
     readable_img = []
-    with ThreadPoolExecutor(max_workers=16) as Executor:
-        if image_bytes:
-            readable_img = list(Executor.map(new_edit_image, image_bytes))
-    
-    texts = list(Text_from_images(ocr= ocr_engine, readable_list= readable_img))
+    pdf_texts = []
+    if image_bytes:
+        with ThreadPoolExecutor(max_workers=16) as Executor:
+            if image_bytes:
+                readable_img = list(Executor.map(new_edit_image, image_bytes))
+            texts = list(Text_from_images(ocr= ocr_engine, readable_list= readable_img))
 
+    elif pdf_bytes:
+        for pdf_data in pdf_bytes:
+            with tempfile.NamedTemporaryFile(suffix='.pdf', delete = False) as tmp:
+                tmp.write(pdf_data)
+                tmp_path = tmp.name
+            try:
+                result = ocr_engine.predict(tmp_path)
+                for item in result:
+                    texts_pdf = item.get('rec_texts', [])
+                    pdf_texts.append("\n".join(texts_pdf))
+            finally:
+                os.unlink(tmp_path)
+        texts = pdf_texts
+    else:
+        texts = []
     print("OCR done!")
+
     record = Record_Grouping_with_Dates(texts= texts)
     record = {key: value for key, value in record.items() if key != 'Unknown' or value}
 
@@ -167,21 +184,36 @@ for folder in subfolder_ids:
     clean_records = master_clean_ocr(records_dict= new_record)
     clean_noise_records = remove_sidebar_noise(records= clean_records)
     print(f"Records expected: {len(new_record)}, clean_noise_records: {len(clean_noise_records)}")
-    primary_icd = find_primary_icd(clean_noise_records)
+
+    primary_icd_list = list(find_primary_icd(clean_noise_records))
+
     print("LLM processing...")
     llm_step = list(llm_response(llm= llm_engine, 
                                  clean_records= clean_noise_records, 
                                  column_names= column_names, 
                                  prompt= prompt, 
                                  system_content= system_content, 
-                                 primary_icd= primary_icd))
+                                 primary_icd= primary_icd_list))
     for i,record in enumerate(llm_step):
+        print(record)
         data = extract_json(record)
+
+        regex_icd = primary_icd_list[i] if i < len(primary_icd_list) else None
+        if regex_icd and data[22]:
+            primary_code = data[22].split(' - ')[0].strip() if ' - ' in str(data[22]) else str(data[22])
+            if regex_icd != primary_code:
+                print(f"ICD mismatch comp {comp_id} record {i+1}: regex={regex_icd}, llm={primary_code}")
+                if ' - ' in str(data[22]):
+                    desc = data[22].split(' - ', 1)[1]
+                    data[22] = f"{regex_icd} - {desc}"
+                else:
+                    data[22] = regex_icd
         disp_date, disp_time = extract_last_datetime(clean_noise_records[i])
         print(f"Record {i+1} disposition regex result: {disp_date}, {disp_time}")
-        if disp_date and disp_time:
-            data[29] = disp_date
-            data[30] = disp_time
+        
+        final_date, final_time = pick_later_time(disp_date, disp_time, data[29], data[30])
+        data[29] = final_date
+        data[30] = final_time
         calculated_age = age_checker(age=None, dob=data[2], visit=data[3])
         if calculated_age:
             ws.cell(row=row_data_check[i] + 2, column=5, value=calculated_age)
