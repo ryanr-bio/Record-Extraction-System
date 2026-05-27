@@ -8,13 +8,15 @@ def fix_icd_misread(code: str) -> str:
         return None
     code = code.strip()
     if re.match(r'^L[A-Z]\d', code):
-        return code[1:]
+        code = code[1:]
     if re.match(r'^2\d{2}', code):
-        return 'Z' + code[1:]
+        code = 'Z' + code[1:]
+    if re.match(r'^Z0\.\d+$', code):
+        code = 'Z00' + code[2:]
     if re.match(r'^O\d{1,2}', code):
-        return 'Z' + code[1:]
+        code = 'Z' + code[1:]
     if re.match(r'^1\d{2}', code):
-        return 'I' + code[1:]
+        code = 'I' + code[1:]
     if not re.match(r'^[A-Z]\d', code):
         return None
     return code
@@ -67,6 +69,12 @@ def validate_vitals(data):
             data[7] = None
     except (ValueError, TypeError):
         pass
+    try:
+        triage = int(data[15]) if data[15] else None
+        if triage is None or not (1 <= triage <= 5):
+            data[15] = None
+    except (ValueError, TypeError):
+        data[15] = None
     return data
 
 def extract_json(llm_output):
@@ -87,9 +95,13 @@ def extract_json(llm_output):
         elif re.search(r"other", key):
             if isinstance(jsondict[key], str):
                 print(f"Raw other_icd from LLM: {jsondict[key]}")
+                primary_code = jsondict.get("primary_icd", "").split(" - ")[0].strip()
                 codes = jsondict[key].split(",")
                 fixed = [fix_icd_misread(c.strip()) for c in codes]
-                jsondict[key] = ", ".join(c for c in fixed if c is not None)
+                jsondict[key] = ", ".join(
+                    c for c in fixed 
+                    if c is not None and c != primary_code
+                )
         if re.search(r"time", key):
             jsondict[key] = format_time(jsondict[key])
 
@@ -104,12 +116,11 @@ def extract_json(llm_output):
     return values
 
 def extract_last_datetime(record_text):
-    dt_pattern = r"(\d{2}/\d{2}/\d{2,4})\s*(\d{2}:\d{2})"
-    disp_section = re.search(
-        r"Disposition Date.*",
-        record_text,
-        re.DOTALL | re.IGNORECASE
-    )
+    dt_pattern = r"(\d{2}/\d{2}/\d{2,4})\s*(\d{2}:\d{2}|\d{4})"
+    for anchor in [r"Disposition\s+Disposition\s+Done", r"Disposition\s+Date", r"Disposition\s+Details"]:
+        disp_section = re.search(anchor + ".*", record_text, re.DOTALL | re.IGNORECASE)
+        if disp_section:
+            break
     if not disp_section:
         return None, None
     
@@ -120,11 +131,33 @@ def extract_last_datetime(record_text):
     latest = None
     latest_dt = None
     for date_str, time_str in matches:
+        if ":" not in time_str and len(time_str) == 4:
+            time_str_parsed = f"{time_str[:2]}:{time_str[2:]}"
+        else:
+            time_str_parsed = time_str
+
         try:
-            dt = pd.to_datetime(f"{date_str} {time_str}", dayfirst=True, errors='coerce')
-            if dt and (latest_dt is None or dt > latest_dt):
+            dt = pd.to_datetime(f"{date_str} {time_str_parsed}", dayfirst=True, errors='coerce')
+            if pd.notna(dt) and (latest_dt is None or dt > latest_dt):
                 latest_dt = dt
-                latest = (date_str, time_str)
+                latest = (date_str, time_str_parsed)
         except:
             pass
     return latest if latest else (None, None)
+
+def pick_later_time(regex_date, regex_time, llm_date, llm_time):
+    try:
+        regex_dt = pd.to_datetime(f"{regex_date} {regex_time}", dayfirst=True, errors='coerce')
+        llm_dt = pd.to_datetime(f"{llm_date} {llm_time}", dayfirst=True, errors='coerce')
+        if pd.isna(regex_dt) and pd.isna(llm_dt):
+            return llm_date, llm_time
+        if pd.isna(regex_dt):
+            return llm_date, llm_time
+        if pd.isna(llm_dt):
+            return regex_date, regex_time
+        if regex_dt >= llm_dt:
+            return regex_date, regex_time
+        else:
+            return llm_date, llm_time
+    except:
+        return llm_date, llm_time
