@@ -39,7 +39,9 @@ checkpointfile = "checkpoint.json"
 
 system_content = '''You are a strict medical data extractor. Extract only 
                   what is explicitly present in the text. Never invent or 
-                  infer data. If a field is not found, use null.'''
+                  infer data. If a field is not found, use null.
+                  Always return valid complete JSON. Never use triple quotes.
+                  Never leave strings unterminated. Always close all brackets and braces.'''
 
 prompt = '''### EXTRACTION RULES:
 1. **primary_icd:** You will be given the primary ICD code directly. Find its description from the "Provisional Diagnosis" table and return as "Code - Description".
@@ -195,7 +197,6 @@ for folder in subfolder_ids:
                                  system_content= system_content, 
                                  primary_icd= primary_icd_list))
     for i,record in enumerate(llm_step):
-        print(record)
         data = extract_json(record)
 
         regex_icd = primary_icd_list[i] if i < len(primary_icd_list) else None
@@ -203,6 +204,8 @@ for folder in subfolder_ids:
             primary_code = data[22].split(' - ')[0].strip() if ' - ' in str(data[22]) else str(data[22])
             if regex_icd != primary_code:
                 print(f"ICD mismatch comp {comp_id} record {i+1}: regex={regex_icd}, llm={primary_code}")
+                with open("icd_mismatches.txt", "a") as f:
+                    f.write(f"comp {comp_id} record {i+1}: regex={regex_icd}, llm={primary_code}\n")
                 if ' - ' in str(data[22]):
                     desc = data[22].split(' - ', 1)[1]
                     data[22] = f"{regex_icd} - {desc}"
