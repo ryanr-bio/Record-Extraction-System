@@ -78,42 +78,46 @@ def validate_vitals(data):
     return data
 
 def extract_json(llm_output):
-    jsondict = json.loads(llm_output)
+    try:
+        jsondict = json.loads(llm_output)
+        list_of_patterns = [r"marital", r"nationality", r"date_of_birth",
+                            r"visit_date", r"visit_time", r"temperature", r"pulse", 
+                            r"respiratory", r"bp", r"o2", r"pain_scale", r"gcs", 
+                            r"height", r"weight", r"bmi", r"triage", r"chief", 
+                            r"past", r"travel", r"medication", r"psychosocial", 
+                            r"occupation", r"primary", r"other", r"disease", 
+                            r"remarks", r"disposition_type", r"advice", r"condition", 
+                            r"disposition_date", r"disposition_time"]
 
-    list_of_patterns = [r"marital", r"nationality", r"date_of_birth",
-                        r"visit_date", r"visit_time", r"temperature", r"pulse", 
-                        r"respiratory", r"bp", r"o2", r"pain_scale", r"gcs", 
-                        r"height", r"weight", r"bmi", r"triage", r"chief", 
-                        r"past", r"travel", r"medication", r"psychosocial", 
-                        r"occupation", r"primary", r"other", r"disease", 
-                        r"remarks", r"disposition_type", r"advice", r"condition", 
-                        r"disposition_date", r"disposition_time"]
+        for key in jsondict:
+            if re.search(r"primary", key):
+                jsondict[key] = fix_icd_misread(jsondict[key])
+            elif re.search(r"other", key):
+                if isinstance(jsondict[key], str):
+                    print(f"Raw other_icd from LLM: {jsondict[key]}")
+                    primary_code = jsondict.get("primary_icd", "").split(" - ")[0].strip()
+                    codes = jsondict[key].split(",")
+                    fixed = [fix_icd_misread(c.strip()) for c in codes]
+                    jsondict[key] = ", ".join(
+                        c for c in fixed 
+                        if c is not None and c != primary_code
+                    )
+            if re.search(r"time", key):
+                jsondict[key] = format_time(jsondict[key])
 
-    for key in jsondict:
-        if re.search(r"primary", key):
-            jsondict[key] = fix_icd_misread(jsondict[key])
-        elif re.search(r"other", key):
-            if isinstance(jsondict[key], str):
-                print(f"Raw other_icd from LLM: {jsondict[key]}")
-                primary_code = jsondict.get("primary_icd", "").split(" - ")[0].strip()
-                codes = jsondict[key].split(",")
-                fixed = [fix_icd_misread(c.strip()) for c in codes]
-                jsondict[key] = ", ".join(
-                    c for c in fixed 
-                    if c is not None and c != primary_code
-                )
-        if re.search(r"time", key):
-            jsondict[key] = format_time(jsondict[key])
-
-    values = []
-    for variable in jsondict.keys():
-        for pattern in list_of_patterns:
-            if re.search(pattern=pattern, string=variable):
-                values.append(jsondict[variable])
-                break 
-    values = [strip_braces(v) for v in values]
-    values = validate_vitals(values)
-    return values
+        values = []
+        for variable in jsondict.keys():
+            for pattern in list_of_patterns:
+                if re.search(pattern=pattern, string=variable):
+                    values.append(jsondict[variable])
+                    break 
+        values = [strip_braces(v) for v in values]
+        values = validate_vitals(values)
+        return values
+    except json.JSONDecodeError as e:
+        print(f"JSONDecodeError: {e}")
+        print(f"Raw LLM output:\n{llm_output}")
+        return None
 
 def extract_last_datetime(record_text):
     dt_pattern = r"(\d{2}/\d{2}/\d{2,4})\s*(\d{2}:\d{2}|\d{4})"

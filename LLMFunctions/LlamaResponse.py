@@ -42,6 +42,7 @@ def llm_response(llm, clean_records, prompt, system_content, column_names, prima
                     "type": "json_object",
                     "schema": schema
                 },
+                max_tokens=-1,
                 temperature= 0.2
             )
             output = response["choices"][0]["message"]["content"]

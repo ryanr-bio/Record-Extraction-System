@@ -5,8 +5,6 @@ def specific_id_row(dataframe, specific_id):
     rows = dataframe.loc[dataframe['Comp ID']==int(specific_id)]
     return rows
 
-# Make sure main scripts has rows as an object of specific_id_row()
-
 def row_num_checker(rows, total_records):
     total_extract = len(total_records)
     if len(rows)==total_extract:
