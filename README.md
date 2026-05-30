@@ -15,7 +15,7 @@ RES automates the labor-intensive process of manual data entry from scanned medi
 * **Language Model:** Qwen2.5 7B
 * **Environment:** Local Server (Privacy-focused, no cloud usage)
 
-🏗 Pipeline Architecture
+## 🏗 Pipeline Architecture
 
 1. Image Retrieval: Files are fetched from Google Drive via the Drive API, with HEIC images converted to JPEG in-memory and PDF files handled through a separate OCR path.
 2. Image Processing: Normalization and enhancement using PIL/OpenCV.
@@ -27,7 +27,7 @@ RES automates the labor-intensive process of manual data entry from scanned medi
 8. Post-processing: Vitals range validation, disposition datetime reconciliation (regex vs. LLM, later time wins), age calculation from DOB, and ICD mismatch correction.
 9. Excel Write-back: Data is written row-by-row via openpyxl, with automatic row insertion for patients with more visits than existing records. Progress is saved by Comp ID after each patient so interrupted runs resume exactly where they left off.
 
-📋 Extracted Fields
+## 📋 Extracted Fields
 
 Demographics: Date of Birth, Nationality, Marital Status, Occupation, Age (calculated)
 Visit Info: Visit Date, Visit Time, Triage Category
