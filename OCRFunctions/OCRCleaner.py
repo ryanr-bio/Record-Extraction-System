@@ -35,7 +35,8 @@ def master_clean_ocr(records_dict):
     (r"Menstrual\s*History", r"Past History"),
     (r"Nurs\w*\s+Not\w+", "Travel History"),
     (r"Problems[\s\n]+(?:SI\.?\s*No|Life Cycle)", "Care Plan"),
-    (r"Medication\s*Order", "Disposition")
+    (r"Medication\s*Order", "Disposition"), 
+    (r"Vital\s*Re-?as+es+ment", "Fall Risk")
     ]
     cleaned_records = {}
     for key, value in records_dict.items():

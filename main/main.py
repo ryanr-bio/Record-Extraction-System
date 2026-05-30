@@ -43,47 +43,45 @@ system_content = '''You are a strict medical data extractor. Extract only
                   Always return valid complete JSON. Never use triple quotes.
                   Never leave strings unterminated. Always close all brackets and braces.'''
 
-prompt = '''### EXTRACTION RULES:
+prompt = '''### GLOBAL RULES:
+- Extract from the FIRST occurrence of each field unless stated otherwise.
+- Extract only the text directly after the label, stopping at the next section heading or any text ending in ":".
+- Do NOT include the label itself in the extracted value.
+- Do NOT wrap values in curly braces or any other characters — return plain values only.
+- If a field is not found, is empty, or is non-meaningful, return null.
+
+### EXTRACTION RULES:
 1. **primary_icd:** You will be given the primary ICD code directly. Find its description from the "Provisional Diagnosis" table and return as "Code - Description".
-2. **other_icd:** From the "Provisional Diagnosis" table, list all ICD codes that do 
-NOT have "Yes" after them. Return ONLY the raw ICD codes as a comma-separated list. 
-Do NOT include descriptions, disease names, or any other text. Do NOT include the 
-primary ICD code.
-Example of correct format: "J18.9, I10, E11.9"
-Example of wrong format: "J18.9 - Pneumonia, I10 - Hypertension"
-Make sure to include ALL ICD codes from the table that do not have "Yes" — do not skip any even if the list is long.
-3. **chief_complaint:** Find the FIRST occurrence of "Chief Complaint & History of Present Illness" or "Chief Complaint and History of Present Illness". Extract only the text that comes after "Triage Category: X" after that heading. Stop before "Past History" or any other section heading.
-4. **date_of_birth:** Find the text "DOB | Age | Gender:". Extract the value immediately following the label but before the first vertical bar (|). Ensure the date is formatted as DD/MM/YYYY.
-5. **nationality:** Find "Nationality:" and return only the nationality value.
-6. **Vitals:** Extract from the "Nursing Assessment" section only, specifically the first row of values under the labels "Temperature", "Pulse", "Respiratory", "BP", "O2SAT". These labels and their values may appear on separate lines. Do NOT wrap values in curly braces or any other characters — return plain values only.
-- **temperature_celsius:** Value under "Temperature". Strip °C or *C. Return numeric only.
-- **pulse_min:** Value under "Pulse". Strip "/min". Return numeric only.
-- **respiratory_min:** Value under "Respiratory". Strip "/min". Return numeric only.
-- **bp_mmhg:** Value under "BP". Return in format "120/80", strip "mm/Hg".
-- **o2_sat:** Value under "O2SAT". 
-If no number is directly present, find the first numeric value before or after a /% /symbol in the Nursing Assessment section. Return numeric only.If a vital is not found, return null.
-7. **visit_date / visit_time:** Find the FIRST occurrence of "Visit Date:" followed by DD/MM/YYYY then a 4-digit time. Split into separate fields. If the date separator is missing (e.g. "08/08 2020"), reconstruct it as DD/MM/YYYY.
-8. **disposition_date / disposition_time:** Find the table at the end of the record 
-that contains the column "Disposition Done". Extract ONLY the date and time from 
-that specific column. This is NOT the visit time, NOT the triage time, and NOT any 
-timestamp from the Nursing Assessment or Observation Notes sections. 
-9. **pain_scale_score:** Find the FIRST occurrence of "Numerical(X)". Return only the integer X. Do not confuse with GCS.
-10. **gcs:** Find the GCS value in the "Nursing Assessment" vitals section. Format is typically "XX/15". Return only the numerator as a plain integer. Do not return the full fraction.
-11. **triage_category:** Find the FIRST occurrence of "Triage Category:" and return only the number after it.
-12. **past_history:** Find the FIRST occurrence of "Past History:" or "Past Medical History". Extract only the text directly after it. Stop before "Travel History:" or any sidebar navigation text such as "HEMODIALYSIS", "LAB REPORTS", "OTHER DOCUMENTS", "ASSESSMENT/RE-ASSESSMENT". Do not include the label itself.
-13. **occupation:** Find the FIRST occurrence of "Occupation:" and extract only the text directly after it.
-14. **marital_status:** Find "Marital Status:" and return only the value after it.
-15. **advice_health_education:** Find the FIRST occurrence of "Advice & Health Education:" and return only the text immediately after it. Stop at "Education Given To:" or any other label.
-16. **condition_at_disposition:** Find "Condition at the time of Disposition:" or "Condition at the tine of Disposition:" and return only the value after it.
-17. **disposition_type:** Find "Disposition Type:" and return only the value after it.
-18. **remarks:** If remarks text is found after the Provisional Diagnosis table and before the Medication Order table, extract it and correct only obvious OCR spelling errors in individual words while preserving the original sentence structure and word order exactly. Otherwise return null.
-19. **travel_history:** Find the FIRST occurrence of "Travel History:". Extract only 
-the text directly after it, stopping at the next labeled field (any text ending in ":"). 
-If the value is empty, a date, month-year, or any non-place text, return null. If 
-"Travel History:" is immediately followed by another label, return null.
-20. **current_medication:** Find the FIRST occurrence of "Current Medication". Extract only text directly after it. Stop at "Medical Prescription" or "Medication Order". If the section contains "No Important History" or is empty, return null. Do NOT extract medications from any other section such as Medication Order, Medical Prescription, Injection Administration Log, or Care Plan.
-21. **psychosocial:** Find the FIRST occurrence of "Psychosocial:" and extract only the text after it. Do not include occupation.
-22. **disease_grouping:** Unless specified, leave as null.
+2. **other_icd:** From the "Provisional Diagnosis" table, list all ICD codes that do NOT have "Yes" after them. Return ONLY raw ICD codes as a comma-separated list. Do NOT include descriptions, disease names, or the primary ICD code.
+   - Correct: "J18.9, I10, E11.9"
+   - Wrong: "J18.9 - Pneumonia, I10 - Hypertension"
+   Include ALL qualifying codes, do not skip any.
+3. **chief_complaint:** Find "Chief Complaint & History of Present Illness" or "Chief Complaint and History of Present Illness". Extract only the text after "Triage Category: X" under that heading. Stop before "Past History" or any other section heading.
+4. **date_of_birth:** Find "DOB | Age | Gender:". Extract the value before the first vertical bar (|), formatted as DD/MM/YYYY.
+5. **nationality:** Value after "Nationality:".
+6. **Vitals:** 6. **Vitals:** Find the FIRST occurrence of the "Vitals" subheading only. Stop reading vitals data as soon as you encounter "Vital Reassessment", "Reassessment", "Re-assessment", or any repeated "Vitals" heading. Do NOT mix values from different vitals sections. Find the first row of values under the labels "Temperature", "Pulse", "Respiratory", "BP", "O2SAT". 
+    These labels and their values may appear on separate lines.
+   - **bp_mmhg:** Find the value under the "BP" label. It MUST contain a forward slash (e.g. "120/80"). If the value does not contain a "/", return null. Strip "mm/Hg". Never return a standalone number as BP.   
+   - **temperature_celsius:** Under "Temperature". Strip °C or *C, return numeric only.
+   - **pulse_min:** Under "Pulse". Strip "/min", return numeric only.
+   - **respiratory_min:** Under "Respiratory". Strip "/min", return numeric only.
+   - **o2_sat:** Under "O2SAT". If no number is directly present, find the first numeric value near a /% symbol in the Nursing Assessment section. Return numeric only.
+7. **visit_date / visit_time:** Find "Visit Date:" followed by DD/MM/YYYY then a 4-digit time. Split into separate fields. If the date separator is missing (e.g. "08/08 2020"), reconstruct as DD/MM/YYYY.
+8. **disposition_date / disposition_time:** Find the table containing the "Disposition Done" column at the END of the record. Extract ONLY the date and time from that column. This is NOT the visit time, triage time, or any timestamp from Nursing Assessment or Observation Notes.
+9. **pain_scale_score:** Find "Numerical(X)". Return only the integer X. Do not confuse with GCS.
+10. **gcs:** Find the GCS value in the "Nursing Assessment" vitals section, typically "XX/15". Return only the numerator as a plain integer.
+11. **triage_category:** Return only the number after "Triage Category:".
+12. **past_history:** Find "Past History:" or "Past Medical History". Stop before "Travel History:" or any sidebar navigation text such as "HEMODIALYSIS", "LAB REPORTS", "OTHER DOCUMENTS", "ASSESSMENT/RE-ASSESSMENT".
+13. **occupation:** Value after "Occupation:".
+14. **marital_status:** Value after "Marital Status:".
+15. **advice_health_education:** Find "Advice & Health Education:". Stop at "Education Given To:".
+16. **condition_at_disposition:** Value after "Condition at the time of Disposition:" or "Condition at the tine of Disposition:".
+17. **disposition_type:** Value after "Disposition Type:".
+18. **remarks:** If remarks text is found after the Provisional Diagnosis table and before the Medication Order table, extract it and correct only obvious OCR spelling errors in individual words while preserving original sentence structure exactly. Otherwise return null.
+19. **travel_history:** If the value is empty, a date, month-year, or any non-place text, return null. If "Travel History:" is immediately followed by another label, return null.
+20. **current_medication:** Find "Current Medication". Stop at "Medical Prescription" or "Medication Order". If the section contains "No Important History" or is empty, return null. Do NOT extract from Medication Order, Medical Prescription, Injection Administration Log, or Care Plan.
+21. **psychosocial:** Value after "Psychosocial:". Do not include occupation.
+22. **disease_grouping:** Leave as null unless specified.
 '''
 
 paddle.set_flags({

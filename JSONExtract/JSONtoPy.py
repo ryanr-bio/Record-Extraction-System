@@ -75,6 +75,12 @@ def validate_vitals(data):
             data[15] = None
     except (ValueError, TypeError):
         data[15] = None
+    try:
+        bp = data[8] if len(data) > 8 else None
+        if bp and not re.match(r'^\d{2,3}/\d{2,3}$', str(bp).strip()):
+            data[8] = None
+    except (ValueError, TypeError):
+        data[8] = None
     return data
 
 def extract_json(llm_output):
