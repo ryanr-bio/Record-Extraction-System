@@ -29,11 +29,16 @@ RES automates the labor-intensive process of manual data entry from scanned medi
 
 ## 📋 Extracted Fields
 
-Demographics: Date of Birth, Nationality, Marital Status, Occupation, Age (calculated)
-Visit Info: Visit Date, Visit Time, Triage Category
-Vitals: Temperature, Pulse, Respiratory Rate, BP, O2 Saturation, Pain Scale, GCS
-Clinical: Chief Complaint, Past History, Current Medication, Psychosocial, Travel History
-Diagnosis: Primary ICD (Code + Description), Other ICD Codes, Disease Grouping, Remarks
-Disposition: Disposition Date/Time, Disposition Type, Condition at Disposition, Advice & Health Education
+**Demographics:** Date of Birth, Nationality, Marital Status, Occupation, Age (calculated)
+
+**Visit Info:** Visit Date, Visit Time, Triage Category
+
+**Vitals:** Temperature, Pulse, Respiratory Rate, BP, O2 Saturation, Pain Scale, GCS
+
+**Clinical:** Chief Complaint, Past History, Current Medication, Psychosocial, Travel History
+
+**Diagnosis:** Primary ICD (Code + Description), Other ICD Codes, Disease Grouping, Remarks
+
+**Disposition:** Disposition Date/Time, Disposition Type, Condition at Disposition, Advice & Health Education
 
 This is a personal project based on my background in Biomedical Science and my recent interest in the art of programming!
