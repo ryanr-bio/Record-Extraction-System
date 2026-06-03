@@ -9,7 +9,7 @@ def clean_ocr(records_dict):
                     r"ND EMERGENCY", r"Fall Risk Assesment", 
                     r"Vital Reasses?s?ment", 
                     r"Fall Risk Reasses?s?ment", r"Nurse\W?s Note Reassessment", 
-                    r"NCY\(\d*\)?", r"EPORTS"
+                    r"NCY\(\d*\)?", r"EPORTS",
                     r"\S*[\W]thumbay[\W]int\S*", r"PVR\s?ID[\W] \d{6}", 
                     r"I?DENT AND EMERGE", r"\S*\(\d*-(\s?\d*\)?)", 
                     r"Thumbay University", r"EMERGEN",
@@ -31,24 +31,24 @@ def clean_ocr(records_dict):
 
 def master_clean_ocr(records_dict):
     removals = [
-    (r"Fall\s*Risk\s*(?:Re)?as+es+ment", "Chief Complaint"), 
-    (r"Menstrual\s*History", r"Past History"),
-    (r"Nurs\w*\s+Not\w+", "Travel History"),
-    (r"Problems[\s\n]+(?:SI\.?\s*No|Life Cycle)", "Care Plan"),
-    (r"Medication\s*Order", "Disposition"), 
-    (r"Vital\s*Re-?as+es+ment", "Fall Risk")
+        (r"Fall\s*Risk\s*(?:Re)?as+es+ment", r"Chief Complaint"),
+        (r"Menstrual\s*History", r"Past History"),
+        (r"Nurs\w*\s+Not\w+", r"Travel History"),
+        (r"Problems[\s\n]+(?:SI\.?\s*No|Life Cycle)", r"Care Plan"),
+        (r"Medication\s*Order", r"Disposition"),
+        (r"Vital\s*Re-?as+es+ment", r"(?:Functional|Nutritional?)\s*(?:Assessment|Screening)|Suicide\s*(?:Threat|Risk)|Allerg(?:y|ies)"),
     ]
+    
     cleaned_records = {}
     for key, value in records_dict.items():
-        combined_patient_text = ""
+        combined_patient_text = "\n\n".join(value)
 
-        for text in value:
-            cleaned_text = text
-            for start_pattern, end_anchor in removals:
-                pattern = rf"(?i){start_pattern}.*?{re.escape(end_anchor)}"
-                cleaned_text = re.sub(pattern, end_anchor, cleaned_text, flags= re.DOTALL)
-            combined_patient_text += cleaned_text + "\n\n "
-        cleaned_records[key] = re.sub(pattern= r"\n{3,}", repl= "\n\n", string= combined_patient_text)
+        for start_pattern, end_anchor in removals:
+            pattern = rf"(?i){start_pattern}.*({end_anchor})"
+            combined_patient_text = re.sub(pattern, r"\1", combined_patient_text, flags=re.DOTALL)
+            
+        cleaned_records[key] = re.sub(r"\n{3,}", "\n\n", combined_patient_text)
+        
     total_clean = clean_ocr(cleaned_records)
     return total_clean
 
