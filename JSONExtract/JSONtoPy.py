@@ -7,6 +7,8 @@ def fix_icd_misread(code: str) -> str:
     if not isinstance(code, str):
         return None
     code = code.strip()
+    if len(code) >= 3 and code[0].isalpha():
+        code = code[0] + code[1:].replace('O', '0')
     if re.match(r'^L[A-Z]\d', code):
         code = code[1:]
     if re.match(r'^2\d{2}', code):
@@ -17,10 +19,11 @@ def fix_icd_misread(code: str) -> str:
         code = 'Z' + code[1:]
     if re.match(r'^1\d{2}', code):
         code = 'I' + code[1:]
+    if re.match(r'^Z0[2-9]\d$', code):
+        return None
     if not re.match(r'^[A-Z]\d', code):
         return None
     return code
-
 
 def format_time(t):
     if isinstance(t, str):
@@ -101,7 +104,7 @@ def extract_json(llm_output):
             elif re.search(r"other", key):
                 if isinstance(jsondict[key], str):
                     print(f"Raw other_icd from LLM: {jsondict[key]}")
-                    primary_code = jsondict.get("primary_icd", "").split(" - ")[0].strip()
+                    primary_code = (jsondict.get("primary_icd") or "").split(" - ")[0].strip()
                     codes = jsondict[key].split(",")
                     fixed = [fix_icd_misread(c.strip()) for c in codes]
                     jsondict[key] = ", ".join(
