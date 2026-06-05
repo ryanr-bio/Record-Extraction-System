@@ -1,4 +1,4 @@
-# Record Extraction System (RES) (Work In Progress)
+# Record Extraction System (RES)
 ### A program designed to retrieve medical record data from hospital databases for research purposes, specifically to automate data entry. This system utilizes advanced OCR techniques and Large Language Models (LLMs) to transform raw image data into structured JSON formats.
 
 ## 🚀 Overview
