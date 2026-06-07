@@ -174,3 +174,32 @@ def pick_later_time(regex_date, regex_time, llm_date, llm_time):
             return llm_date, llm_time
     except:
         return llm_date, llm_time
+
+def validate_disposition(data, comp_id=None, record_num=None):
+    try:
+        visit_date = data[3]
+        disp_date = data[29]
+        disp_time = data[30]
+        
+        if not visit_date or not disp_date:
+            return data
+            
+        visit_dt = pd.to_datetime(visit_date, dayfirst=True, errors='coerce')
+        disp_dt = pd.to_datetime(f"{disp_date} {disp_time}" if disp_time else disp_date, 
+                                  dayfirst=True, errors='coerce')
+        
+        if pd.isna(visit_dt) or pd.isna(disp_dt):
+            return data
+            
+        # Disposition should be after visit and within 30 days
+        diff = (disp_dt - visit_dt).days
+        if diff < 0 or diff > 30:
+            print(f"Suspicious disposition date: visit={visit_date}, disp={disp_date}")
+            with open("disposition_errors.txt", "a") as f:
+                f.write(f"comp {comp_id} record {record_num}: visit={visit_date}, disp={disp_date} {disp_time}\n")
+            data[29] = None
+            data[30] = None
+            
+    except Exception:
+        pass
+    return data
